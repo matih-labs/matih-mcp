@@ -1,0 +1,55 @@
+{
+  "name": "@matihlabs/mcp",
+  "version": "0.1.0",
+  "description": "Matih MCP client toolkit — connect AI clients (Claude Desktop, ChatGPT, Cursor) to the Matih data platform over the Model Context Protocol.",
+  "keywords": [
+    "matih",
+    "mcp",
+    "model-context-protocol",
+    "sql",
+    "data-platform",
+    "claude",
+    "stdio"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "matih-mcp": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matih-labs/matih-mcp.git"
+  },
+  "homepage": "https://matih.ai",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.0",
+    "typescript": "5.8.3",
+    "vitest": "3.0.5"
+  }
+}

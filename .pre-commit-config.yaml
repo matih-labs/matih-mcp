@@ -1,0 +1,8 @@
+# pre-commit hooks for the @matihlabs/mcp public repo. Install: `pre-commit install`.
+# gitleaks runs locally before every commit so a secret never reaches history.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+        args: ["--config", ".gitleaks.toml"]

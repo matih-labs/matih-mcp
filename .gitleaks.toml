@@ -1,0 +1,21 @@
+# gitleaks config for the @matihlabs/mcp public repo.
+# Extends the default ruleset; allowlists the SDK's intentionally-fake test fixtures
+# (the transport/oauth tests embed fake matih tokens + JWTs to exercise redaction/auth paths).
+title = "matih-mcp gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures + docs contain intentionally fake tokens, not real secrets"
+paths = [
+  '''test/.*\.test\.ts$''',
+]
+regexes = [
+  # Fake matih tokens used as test fixtures (see test/transport.test.ts, test/client.test.ts).
+  '''matih_pat_[A-Z0-9]{20,}''',
+  '''matih_sk_(?:live|test)_[A-Z0-9]{20,}''',
+  '''harness-token''',
+  # README placeholder, never a real value.
+  '''<your Matih bearer token>''',
+]
