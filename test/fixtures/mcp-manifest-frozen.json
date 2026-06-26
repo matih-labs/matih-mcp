@@ -1,0 +1,20 @@
+{
+  "protocolVersion": "2025-11-25",
+  "tools": {
+    "run_sql":          { "required": ["connection_id", "sql"],   "properties": ["connection_id", "limit", "sql"] },
+    "profile_table":    { "required": ["table_fqn"],               "properties": ["table_fqn"] },
+    "run_analysis":     { "required": ["connection_id", "sql"],   "properties": ["chart_type", "connection_id", "limit", "sql", "x", "y"] },
+    "create_chart":     { "required": ["data"],                    "properties": ["chart_type", "data", "x", "y"] },
+    "create_dashboard": { "required": ["project_id", "spec"],     "properties": ["description", "name", "project_id", "spec"] },
+    "get_dashboard":     { "required": ["dashboard_id"],           "properties": ["dashboard_id"] },
+    "publish_dashboard": { "required": ["dashboard_id"],           "properties": ["allow_embed", "dashboard_id", "expires_at", "password"] },
+    "whoami":           { "required": [],                          "properties": [] },
+    "get_scope":        { "required": [],                          "properties": [] },
+    "get_query_result": { "required": ["execution_id"],            "properties": ["execution_id", "limit"] },
+    "upload_file":      { "required": ["content_base64", "table_name"], "properties": ["content_base64", "format", "table_name"] },
+    "upload_status":    { "required": ["upload_id"],               "properties": ["upload_id"] },
+    "create_upload_url": { "required": ["file_name", "file_size", "table_name"], "properties": ["file_name", "file_size", "table_name"] },
+    "finalize_upload":   { "required": ["upload_id"],              "properties": ["upload_id"] }
+  },
+  "prompts": ["explain_metric"]
+}
