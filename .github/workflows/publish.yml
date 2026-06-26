@@ -5,6 +5,10 @@
 # Preferred auth is npm TRUSTED PUBLISHING (configured once on npmjs.com for this repo +
 # workflow — no token in the repo). If trusted publishing is not set up, provide an automation
 # NPM_TOKEN secret and uncomment the NODE_AUTH_TOKEN env below.
+#
+# NOTE: tokenless trusted publishing requires npm CLI >= 11.5.1. Node 20 ships npm 10.8,
+# which CANNOT authenticate via OIDC trusted publishing — `npm publish` exits 1. The
+# "Upgrade npm" step below bumps to a trusted-publishing-capable npm before publish.
 name: publish
 
 on:
@@ -25,6 +29,12 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
           cache: npm
+      # Tokenless trusted publishing needs npm >= 11.5.1; node 20 ships npm 10.8.
+      # Upgrade before any npm command so `npm publish` can authenticate via OIDC.
+      - name: Upgrade npm (trusted-publishing capable)
+        run: |
+          npm install -g npm@latest
+          npm --version
       # Gate the release on a green build + tests (dist is built here, not committed).
       - run: npm ci
       - run: npm run build
