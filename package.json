@@ -1,6 +1,6 @@
 {
   "name": "@matihlabs/mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Matih MCP client toolkit — connect AI clients (Claude Desktop, ChatGPT, Cursor) to the Matih data platform over the Model Context Protocol.",
   "keywords": [
     "matih",
