@@ -1,54 +1,86 @@
-# Publish @matihlabs/mcp to npm with provenance, from the public repo, on a GitHub Release.
-# (Inert in the monorepo; activates at the public repo root.)
+# Auto-publish @matihlabs/mcp to npm whenever a version bump lands on main.
+# (Inert in the monorepo — GitHub only runs workflows at the REPO ROOT
+# .github/workflows; this activates at the public matih-mcp repo root.)
 #
-# Provenance (--provenance) requires OIDC: `id-token: write` + npm >= 9.5 in GitHub Actions.
-# Preferred auth is npm TRUSTED PUBLISHING (configured once on npmjs.com for this repo +
-# workflow — no token in the repo). If trusted publishing is not set up, provide an automation
-# NPM_TOKEN secret and uncomment the NODE_AUTH_TOKEN env below.
+# Flow: bump "version" in package.json -> push to main. This workflow builds,
+# tests, npm-publishes with provenance, then tags vX.Y.Z + cuts a GitHub Release.
+# No manual `gh release create` needed. IDEMPOTENT: if the version is already on
+# npm, it no-ops — so non-version pushes, re-runs, and re-syncs are all safe.
+# Manual trigger (Actions tab / `gh workflow run publish.yml`) is also supported.
 #
-# NOTE: tokenless trusted publishing requires npm CLI >= 11.5.1. Node 20 ships npm 10.8,
-# which CANNOT authenticate via OIDC trusted publishing — `npm publish` exits 1. The
-# "Upgrade npm" step below bumps to a trusted-publishing-capable npm before publish.
+# Auth: npm TRUSTED PUBLISHING (OIDC, tokenless) — configured once on npmjs.com
+# for THIS repo + workflow filename (publish.yml). Do NOT rename this file without
+# updating the npmjs trusted-publisher config (the OIDC subject pins the workflow
+# path). Tokenless trusted publishing requires npm CLI >= 11.5.1; node 20 ships
+# npm 10.8, so the "Upgrade npm" step bumps it before publish. `id-token: write`
+# is required for both provenance and the OIDC token exchange.
 name: publish
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: read
-  id-token: write # OIDC — required for provenance + trusted publishing
+  contents: write # push the vX.Y.Z tag + create the GitHub Release
+  id-token: write # OIDC — provenance + trusted publishing
+
+concurrency:
+  group: publish-matih-mcp
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history for tag + release notes
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
           cache: npm
       # Tokenless trusted publishing needs npm >= 11.5.1; node 20 ships npm 10.8.
-      # Upgrade before any npm command so `npm publish` can authenticate via OIDC.
       - name: Upgrade npm (trusted-publishing capable)
         run: |
           npm install -g npm@latest
           npm --version
-      # Gate the release on a green build + tests (dist is built here, not committed).
-      - run: npm ci
-      - run: npm run build
-      - run: npm run typecheck
-      - run: npm test
-      # Guard: the git tag (e.g. v0.1.0) must match package.json version.
-      - name: Verify tag matches package version
+      # Resolve the package version and whether it is ALREADY on npm. The whole
+      # publish path is gated on "not yet published", so a push that doesn't bump
+      # the version (or a re-run) is a clean no-op — never an error.
+      - name: Resolve version + publish state
+        id: v
         run: |
-          PKG=$(node -p "require('./package.json').version")
-          TAG="${GITHUB_REF_NAME#v}"
-          if [ "$PKG" != "$TAG" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $PKG"
-            exit 1
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if npm view "@matihlabs/mcp@$VERSION" version >/dev/null 2>&1; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::@matihlabs/mcp@$VERSION is already on npm — nothing to publish."
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::@matihlabs/mcp@$VERSION not on npm — will build, test, publish."
           fi
-      - run: npm publish --provenance --access public
-        # env:
-        #   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}   # only if NOT using trusted publishing
+      - name: Build + test (gate the publish)
+        if: steps.v.outputs.already_published == 'false'
+        run: |
+          npm ci
+          npm run build
+          npm run typecheck
+          npm test
+      # The critical gated action. Provenance + OIDC trusted publishing.
+      - name: Publish to npm
+        if: steps.v.outputs.already_published == 'false'
+        run: npm publish --provenance --access public
+      # Post-publish bookkeeping: tag the released commit + cut a GitHub Release.
+      # Best-effort (|| true) so a pre-existing tag from a prior partial run never
+      # fails the workflow AFTER a successful publish.
+      - name: Tag + GitHub Release
+        if: steps.v.outputs.already_published == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ steps.v.outputs.version }}"
+          git tag "$TAG" || true
+          git push origin "$TAG" || true
+          gh release create "$TAG" --title "$TAG" --generate-notes || true
