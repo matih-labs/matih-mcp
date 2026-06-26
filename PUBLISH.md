@@ -13,8 +13,10 @@ need YOUR credentials (an agent must not run them).
 
 - `package.json` — `@matihlabs/mcp@0.1.0`, `files: ["dist","README.md","LICENSE"]` (dist-only
   tarball), `publishConfig.provenance: true`, `bin.matih-mcp` (the stdio bridge).
-- `.github/workflows/ci.yml` — build + typecheck + vitest + gitleaks on push/PR.
-- `.github/workflows/publish.yml` — `npm publish --provenance` on a GitHub Release (OIDC).
+- `.github/workflows/ci.yml` — build + typecheck + vitest + gitleaks (license-free CLI) on push/PR.
+- `.github/workflows/publish.yml` — **auto-publish on a version bump to `main`**: build +
+  test + `npm publish --provenance` (OIDC trusted publishing) + tag `vX.Y.Z` + GitHub Release.
+  Idempotent (no-ops if the version is already on npm). No manual `gh release create`.
 - `.gitleaks.toml` + `.pre-commit-config.yaml` — secret scanning (CI + local).
 - `LICENSE` (Apache-2.0), `README.md`, `LIFECYCLE.md` (deprecation + spec-migration policy).
 
@@ -40,30 +42,47 @@ Preferred — no secret in the repo:
 Fallback (if not using trusted publishing): create an **automation** `NPM_TOKEN`, add it as a
 repo secret, and uncomment `NODE_AUTH_TOKEN` in `publish.yml`.
 
-## 3 — Cut a release
+## 3 — Release (automated — just bump the version)
+
+Publishing is automated by `publish.yml`. To cut a release you only **bump the version and
+push to `main`** of the public repo:
 
 ```bash
-# bump version in package.json (e.g. 0.1.0), then:
-git tag v0.1.0 && git push origin v0.1.0
-gh release create v0.1.0 --generate-notes
+# in the public repo working copy:
+npm version patch --no-git-tag-version   # or edit "version" in package.json (+ sync lockfile)
+git commit -am "release: vX.Y.Z" && git push origin main
 ```
 
-The release triggers `publish.yml`: it builds, typechecks, tests, verifies the tag matches
-`package.json` version, then `npm publish --provenance --access public`.
+On that push, `publish.yml` automatically: upgrades npm (≥ 11.5.1, required for tokenless
+trusted publishing — node 20 ships 10.8), builds, typechecks, tests, `npm publish --provenance
+--access public` via OIDC, then creates the `vX.Y.Z` git tag + GitHub Release. It is
+**idempotent** — if `@matihlabs/mcp@<version>` is already on npm it no-ops, so non-version
+pushes, re-runs, and re-syncs are safe (never "cannot publish over existing version"). A
+manual run is available via the Actions tab or `gh workflow run publish.yml`.
+
+> **Do not rename `publish.yml`** — the npmjs trusted-publisher OIDC subject pins the workflow
+> filename. Renaming requires updating the trusted-publisher config on npmjs first.
 
 Verify:
 
 ```bash
-npm view @matihlabs/mcp version           # → 0.1.0
-npm view @matihlabs/mcp dist.attestations # provenance present
+npm view @matihlabs/mcp version            # → X.Y.Z
+npm view @matihlabs/mcp dist.attestations  # provenance present
+gh run watch --repo matih-labs/matih-mcp   # the publish run
 ```
+
+The legacy manual path (`gh release create vX.Y.Z`) still works if ever needed — the version
+guard accepts it — but is no longer required.
 
 ## 4 — Keep public ↔ monorepo in sync
 
 `tools/matih-mcp/` in the monorepo is the source of truth. On each SDK change, mirror the
-package contents (NOT monorepo history) to the public repo and cut a release. Keep the
-conformance test (`test/conformance.test.ts`) — it pins the SDK to the server's frozen manifest,
-so a server tool/version change that isn't mirrored fails CI before publish.
+package contents (NOT monorepo history) to the public repo `main` and bump the version — the
+push auto-publishes (Step 3). Keep the conformance test (`test/conformance.test.ts`) — it pins
+the SDK to the server's frozen manifest (vendored at `test/fixtures/mcp-manifest-frozen.json`;
+a monorepo-only drift guard asserts the vendored copy matches `backend/src/test/resources/mcp/
+mcp-manifest-frozen.json`), so a server tool/version change that isn't mirrored fails CI before
+publish.
 
 ## Local secret-scanning (optional but recommended)
 
